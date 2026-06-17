@@ -1,0 +1,145 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  role          String    @default("user") // user | admin
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile      Profile?
+  settings     Settings?
+  sentMessages Message[]
+  participants Participant[]
+  conversations Conversation[]
+  notifications Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Profile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  displayName String
+  username    String?   @unique
+  avatarUrl   String?
+  bio         String    @default("")
+  lastSeen    DateTime?
+  isOnline    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([username])
+  @@index([displayName])
+  @@map("profiles")
+}
+
+model Settings {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  theme               String   @default("system") // light | dark | system
+  chatBackground      String   @default("default")
+  notificationsEnabled Boolean @default(true)
+  soundEnabled        Boolean  @default(true)
+  typingIndicator     Boolean  @default(true)
+  readReceipts        Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
+}
+
+model Conversation {
+  id              String        @id @default(cuid())
+  lastMessageId   String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  creator         User?         @relation(fields: [creatorId], references: [id])
+  creatorId       String?
+
+  messages        Message[]
+  participants    Participant[]
+
+  @@index([updatedAt])
+  @@index([lastMessageId])
+  @@map("conversations")
+}
+
+model Participant {
+  id              String    @id @default(cuid())
+  conversationId  String
+  userId          String
+  joinedAt        DateTime  @default(now())
+  lastReadAt      DateTime?
+  isTyping        Boolean   @default(false)
+  typingStartedAt DateTime?
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+  @@index([lastReadAt])
+  @@map("participants")
+}
+
+model Message {
+  id              String    @id @default(cuid())
+  conversationId  String
+  senderId        String
+  content         String
+  status          String    @default("sending") // sending | sent | delivered | read
+  sentAt          DateTime  @default(now())
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt(sort: Desc)])
+  @@index([senderId])
+  @@index([status])
+  @@map("messages")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // message | system | alert
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@map("notifications")
+}
